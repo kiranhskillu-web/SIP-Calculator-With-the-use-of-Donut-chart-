@@ -1,0 +1,442 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SIP Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: two columns. Left sticky result card (donut, total, legend, growth chart); right the controls. Stacks on phones. */
+:root {
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --surface-2: #f0f1f7;
+  --ink: #1b1730;
+  --ink-2: #5b5873;
+  --line: #dcdce8;
+  --invested: #8a5cc7;
+  --invested-strong: #4f2490;
+  --returns: #1fa67a;
+  --returns-strong: #0f7d5a;
+  --focus: #4f2490;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12101d; --surface: #1b1829; --surface-2: #252136; --ink: #f1eefa; --ink-2: #a9a4c2;
+    --line: #34304a; --invested: #a77ee0; --invested-strong: #c3a2f2; --returns: #2fc496;
+    --returns-strong: #4fdcae; --focus: #c3a2f2; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12101d; --surface: #1b1829; --surface-2: #252136; --ink: #f1eefa; --ink-2: #a9a4c2;
+  --line: #34304a; --invested: #a77ee0; --invested-strong: #c3a2f2; --returns: #2fc496;
+  --returns-strong: #4fdcae; --focus: #c3a2f2; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 32px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; align-items: start; }
+h1 { font-family: var(--font-display); font-size: clamp(1.7rem, 4vw, 2.2rem); line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-size: 1rem; margin: 0; }
+.intro { color: var(--ink-2); margin: 0 0 22px; max-width: 62ch; }
+.nums { font-variant-numeric: tabular-nums; }
+
+/* tabs and mode */
+.tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tab { background: none; border: 0; padding: 8px 2px 10px; font: 600 1rem var(--font-body); color: var(--ink-2); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--invested-strong); border-bottom-color: var(--invested-strong); }
+.modes { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 26px; }
+.modes label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; }
+.modes input { accent-color: var(--invested-strong); width: 18px; height: 18px; margin: 0; }
+
+/* controls */
+.field { margin-bottom: 30px; }
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.field-head label, .field-head .lbl { font-weight: 700; }
+.box { display: flex; align-items: center; gap: 4px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 6px; padding: 0 10px; height: 42px; min-width: 0; }
+.box:focus-within { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
+.box input, .box select { border: 0; background: transparent; color: var(--ink); font: 600 1rem var(--font-body); outline: none; width: 100%; min-width: 0; padding: 0; height: 100%; }
+.box .pre, .box .suf { color: var(--ink-2); font-weight: 600; }
+.box.amt { width: 168px; }
+.box.pct { width: 96px; }
+.tenure-wrap { display: flex; gap: 8px; }
+.box.ten { width: 76px; }
+.box.unit { width: 112px; padding: 0 6px; }
+.box select { cursor: pointer; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 24px; background: transparent; margin: 0; cursor: pointer; --p: 0%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--invested-strong) var(--p), var(--line) var(--p)); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--invested-strong); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--invested-strong); border: 3px solid var(--surface); box-shadow: 0 0 0 1.5px var(--invested-strong); margin-top: -9px; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--invested-strong); border: 3px solid var(--surface); box-shadow: 0 0 0 1.5px var(--invested-strong); }
+input[type="range"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 4px; }
+.ticks { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: var(--ink-2); padding-top: 4px; }
+.ticks span { min-width: 0; }
+
+/* results */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.card-head { padding: 14px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.card-body { padding: 22px 20px; }
+.summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px 32px; }
+.donut { position: relative; width: 190px; height: 190px; flex: none; }
+.donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.donut .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.donut .center b { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.1; }
+.donut .center span { font-size: 0.75rem; color: var(--ink-2); font-weight: 600; }
+.figures { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.total { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.total small { display: block; color: var(--ink-2); font-weight: 600; font-size: 0.85rem; }
+.total b { font-family: var(--font-display); font-size: clamp(1.3rem, 3.4vw, 1.6rem); color: var(--returns-strong); overflow-wrap: anywhere; }
+.total.need b { color: var(--invested-strong); }
+.legend { display: flex; flex-direction: column; gap: 12px; }
+.legend .row small { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-weight: 600; font-size: 0.85rem; }
+.legend .row b { display: block; font-size: 1.05rem; padding-left: 20px; overflow-wrap: anywhere; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.sw.i { background: var(--invested); }
+.sw.r { background: var(--returns); }
+
+.growth { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.growth h2 { margin-bottom: 8px; }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--ink-2); font: 600 10.5px var(--font-body); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .bar-i { fill: var(--invested); }
+.chart .bar-r { fill: var(--returns); }
+.chart .hit { fill: transparent; }
+.chart .hit:hover + .hl, .chart .hl.on { opacity: 1; }
+.chart .hl { fill: var(--ink); opacity: 0; pointer-events: none; }
+.readout { min-height: 22px; font-size: 0.85rem; color: var(--ink-2); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--ink); }
+
+details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+.tbl { overflow: auto; max-height: 320px; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 12px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--surface-2); font-weight: 700; }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+.note { color: var(--ink-2); font-size: 0.82rem; margin: 18px 0 0; max-width: 64ch; }
+
+.left { position: sticky; top: 16px; min-width: 0; }
+.right { min-width: 0; }
+
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .left { position: static; order: 2; }
+  .right { order: 1; }
+}
+@media (max-width: 440px) {
+  .box.amt { width: 140px; }
+  .donut { width: 168px; height: 168px; }
+  .card-body { padding: 18px 14px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .donut circle { transition: stroke-dasharray 0.35s ease; }
+}
+</style>
+
+<div class="wrap">
+  <section class="left" aria-label="Results">
+    <div class="card">
+      <div class="card-head"><h2>Investment vs returns</h2></div>
+      <div class="card-body">
+        <div class="summary">
+          <div class="donut">
+            <svg viewBox="0 0 120 120" role="img" aria-label="Share of invested amount and returns in the total value">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--returns)" stroke-width="16"></circle>
+              <circle id="arcInv" cx="60" cy="60" r="48" fill="none" stroke="var(--invested)" stroke-width="16" stroke-dasharray="0 302"></circle>
+            </svg>
+            <div class="center"><b class="nums" id="retShare">0%</b><span>of value is returns</span></div>
+          </div>
+          <div class="figures">
+            <div class="total" id="totalBox"><small id="totalLbl">Total value of investment</small><b class="nums" id="total">₹0.00</b></div>
+            <div class="total need" id="needBox" hidden><small id="needLbl">Monthly SIP needed</small><b class="nums" id="need">₹0</b></div>
+            <div class="legend">
+              <div class="row"><small><span class="sw i"></span>Invested amount</small><b class="nums" id="inv">₹0.00</b></div>
+              <div class="row"><small><span class="sw r"></span>Total returns</small><b class="nums" id="ret">₹0.00</b></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="growth">
+          <h2>Year-by-year growth</h2>
+          <svg class="chart" id="chart" viewBox="0 0 560 220" role="img" aria-label="Stacked bars of invested amount and returns for each year"></svg>
+          <div class="readout" id="readout">Hover or tap a bar to see that year.</div>
+        </div>
+
+        <details>
+          <summary>Year-wise breakdown</summary>
+          <div class="tbl">
+            <table>
+              <thead><tr><th>Year</th><th>Invested</th><th>Returns</th><th>Value</th></tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="right" aria-label="Inputs">
+    <h1>SIP Calculator</h1>
+    <p class="intro">A Systematic Investment Plan puts a fixed amount into a mutual fund every month. Set the amount, the return you expect and the time you will stay invested to see what it could grow into.</p>
+
+    <div class="tabs" role="tablist" aria-label="Investment type">
+      <button class="tab" role="tab" id="tab-sip" aria-selected="true" data-mode="sip">SIP</button>
+      <button class="tab" role="tab" id="tab-lump" aria-selected="false" data-mode="lump">Lumpsum</button>
+    </div>
+
+    <div class="modes" role="radiogroup" aria-label="Calculation mode">
+      <label><input type="radio" name="calc" id="m-know" value="know" checked> I know my investment</label>
+      <label><input type="radio" name="calc" id="m-goal" value="goal"> I know my goal</label>
+    </div>
+
+    <div class="field">
+      <div class="field-head">
+        <label for="amtNum" id="amtLbl">Monthly SIP amount</label>
+        <div class="box amt"><span class="pre">₹</span><input id="amtNum" type="number" inputmode="decimal" min="0" step="any"></div>
+      </div>
+      <input type="range" id="amtRng" aria-labelledby="amtLbl">
+      <div class="ticks" id="amtTicks"></div>
+    </div>
+
+    <div class="field">
+      <div class="field-head">
+        <label for="rateNum">Expected return rate (per annum)</label>
+        <div class="box pct"><input id="rateNum" type="number" inputmode="decimal" min="0" max="50" step="0.1"><span class="suf">%</span></div>
+      </div>
+      <input type="range" id="rateRng" min="1" max="30" step="0.1" aria-label="Expected return rate slider">
+      <div class="ticks"><span>1%</span><span>10%</span><span>20%</span><span>30%</span></div>
+    </div>
+
+    <div class="field">
+      <div class="field-head">
+        <label for="tenNum">Tenure</label>
+        <div class="tenure-wrap">
+          <div class="box ten"><input id="tenNum" type="number" inputmode="numeric" min="1" step="1"></div>
+          <div class="box unit"><select id="unit" aria-label="Tenure unit"><option value="Y">Year(s)</option><option value="M">Month(s)</option></select></div>
+        </div>
+      </div>
+      <input type="range" id="tenRng" aria-label="Tenure slider">
+      <div class="ticks" id="tenTicks"></div>
+    </div>
+
+    <p class="note">Estimates assume the return rate stays constant and the SIP is invested at the start of each month, compounded monthly. Lumpsum compounds yearly. Actual mutual fund returns vary and are not guaranteed. Taxes, exit loads and expense ratios are not included.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt2 = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var fmt0 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+  var rupee = function (v) { return "₹" + fmt2.format(v); };
+  var rupee0 = function (v) { return "₹" + fmt0.format(Math.round(v)); };
+
+  function compact(v) {
+    if (v >= 1e7) return (v / 1e7).toFixed(v >= 1e8 ? 0 : 1).replace(/\.0$/, "") + " Cr";
+    if (v >= 1e5) return (v / 1e5).toFixed(v >= 1e6 ? 0 : 1).replace(/\.0$/, "") + " L";
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return String(Math.round(v));
+  }
+  function compactFull(v) { return "₹" + compact(v); }
+
+  // slider configs per mode + calc type
+  var CFG = {
+    "sip-know":  { label: "Monthly SIP amount",   min: 500,     max: 100000,   step: 500,    def: 5000 },
+    "sip-goal":  { label: "Target amount (goal)", min: 100000,  max: 100000000, step: 100000, def: 10000000 },
+    "lump-know": { label: "Lumpsum amount",       min: 5000,    max: 10000000, step: 5000,   def: 100000 },
+    "lump-goal": { label: "Target amount (goal)", min: 100000,  max: 100000000, step: 100000, def: 10000000 }
+  };
+  var S = { mode: "sip", calc: "know", rate: 12, years: 25, unit: "Y", vals: {} };
+  Object.keys(CFG).forEach(function (k) { S.vals[k] = CFG[k].def; });
+
+  function key() { return S.mode + "-" + S.calc; }
+
+  // ---- finance ----
+  function sipFactor(n, r) { // future value of 1/month, paid at the start of each month
+    if (r === 0) return n;
+    return ((Math.pow(1 + r, n) - 1) / r) * (1 + r);
+  }
+  function valueAt(P, months) { // value after "months" months
+    if (S.mode === "sip") return P * sipFactor(months, S.rate / 1200);
+    return P * Math.pow(1 + S.rate / 100, months / 12);
+  }
+  function compute() {
+    var months = Math.max(1, Math.round(S.unit === "Y" ? S.years * 12 : S.years));
+    var amt = S.vals[key()];
+    var P, total;
+    if (S.calc === "know") {
+      P = amt; total = valueAt(P, months);
+    } else {
+      var f = valueAt(1, months);
+      P = amt / f; total = amt;
+    }
+    var invested = S.mode === "sip" ? P * months : P;
+    return { months: months, P: P, total: total, invested: invested, returns: total - invested };
+  }
+
+  // ---- render ----
+  var CIRC = 2 * Math.PI * 48;
+  function setFill(el) {
+    var p = (el.value - el.min) / (el.max - el.min) * 100;
+    el.style.setProperty("--p", Math.max(0, Math.min(100, p)) + "%");
+  }
+  function renderTicks(el, arr) { el.innerHTML = arr.map(function (t) { return "<span>" + t + "</span>"; }).join(""); }
+
+  function configureAmount() {
+    var c = CFG[key()];
+    $("amtLbl").textContent = c.label;
+    var r = $("amtRng");
+    r.min = c.min; r.max = c.max; r.step = c.step;
+    var v = S.vals[key()];
+    r.value = v; setFill(r);
+    $("amtNum").value = v;
+    var t = [];
+    for (var i = 0; i <= 4; i++) t.push(i === 0 ? compactFull(c.min) : compactFull(c.min + (c.max - c.min) * i / 4));
+    renderTicks($("amtTicks"), t);
+  }
+  function configureTenure() {
+    var r = $("tenRng");
+    var max = S.unit === "Y" ? 40 : 480;
+    r.min = 1; r.max = max; r.step = 1;
+    r.value = Math.min(S.years, max); setFill(r);
+    $("tenNum").value = S.years;
+    $("tenNum").max = max;
+    renderTicks($("tenTicks"), S.unit === "Y" ? ["1Y", "10Y", "20Y", "30Y", "40Y"] : ["1M", "120M", "240M", "360M", "480M"]);
+  }
+
+  function renderChart(res) {
+    var svg = $("chart");
+    var years = Math.ceil(res.months / 12);
+    var data = [];
+    for (var y = 1; y <= years; y++) {
+      var m = Math.min(y * 12, res.months);
+      var tv = valueAt(res.P, m);
+      var iv = S.mode === "sip" ? res.P * m : res.P;
+      data.push({ y: y, inv: iv, ret: tv - iv, tot: tv });
+    }
+    var W = 560, H = 220, L = 52, R = 8, T = 10, B = 26;
+    var max = data[data.length - 1].tot || 1;
+    // nice max
+    var mag = Math.pow(10, Math.floor(Math.log10(max)));
+    var steps = [1, 2, 2.5, 5, 10], nice = mag * 10;
+    for (var s = 0; s < steps.length; s++) { if (steps[s] * mag >= max) { nice = steps[s] * mag; break; } }
+    var ph = H - T - B, pw = W - L - R;
+    var out = "";
+    for (var g = 0; g <= 4; g++) {
+      var val = nice * g / 4, yy = T + ph - (val / nice) * ph;
+      out += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '"/>';
+      out += '<text x="' + (L - 6) + '" y="' + (yy + 3.5) + '" text-anchor="end">' + (g === 0 ? "0" : compactFull(val)) + '</text>';
+    }
+    var n = data.length, slot = pw / n, bw = Math.max(2, slot * 0.7);
+    var every = n > 30 ? 5 : n > 15 ? 2 : 1;
+    data.forEach(function (d, i) {
+      var x = L + slot * i + (slot - bw) / 2;
+      var hi = d.inv / nice * ph, hr = d.ret / nice * ph;
+      var yi = T + ph - hi, yr = yi - hr;
+      out += '<rect class="bar-i" x="' + x.toFixed(2) + '" y="' + yi.toFixed(2) + '" width="' + bw.toFixed(2) + '" height="' + Math.max(0, hi).toFixed(2) + '"/>';
+      out += '<rect class="bar-r" x="' + x.toFixed(2) + '" y="' + yr.toFixed(2) + '" width="' + bw.toFixed(2) + '" height="' + Math.max(0, hr).toFixed(2) + '"/>';
+      out += '<rect class="hit" data-i="' + i + '" x="' + (L + slot * i).toFixed(2) + '" y="' + T + '" width="' + slot.toFixed(2) + '" height="' + ph + '"/>';
+      if ((i + 1) % every === 0 || i === 0 || i === n - 1) {
+        if (i === n - 1 || (n - 1 - i) >= every || i === 0 || (i + 1) % every === 0) {
+          out += '<text x="' + (x + bw / 2).toFixed(2) + '" y="' + (H - 8) + '" text-anchor="middle">' + d.y + '</text>';
+        }
+      }
+    });
+    svg.innerHTML = out;
+    svg.__data = data;
+  }
+
+  var chartEl = $("chart");
+  function showYear(e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || t.getAttribute("data-i") === null) return;
+    var d = chartEl.__data[+t.getAttribute("data-i")];
+    $("readout").innerHTML = "<b>Year " + d.y + "</b> · invested " + rupee0(d.inv) + " · returns " + rupee0(d.ret) + " · value <b>" + rupee0(d.tot) + "</b>";
+  }
+  chartEl.addEventListener("mouseover", showYear);
+  chartEl.addEventListener("click", showYear);
+
+  function renderRows() {
+    var data = chartEl.__data || [];
+    $("rows").innerHTML = data.map(function (d) {
+      return "<tr><td>" + d.y + "</td><td>" + rupee0(d.inv) + "</td><td>" + rupee0(d.ret) + "</td><td>" + rupee0(d.tot) + "</td></tr>";
+    }).join("");
+  }
+
+  function render() {
+    var r = compute();
+    $("total").textContent = rupee(r.total);
+    $("inv").textContent = rupee(r.invested);
+    $("ret").textContent = rupee(r.returns);
+    $("totalLbl").textContent = S.calc === "goal" ? "Your goal" : "Total value of investment";
+    var needBox = $("needBox");
+    needBox.hidden = S.calc !== "goal";
+    $("needLbl").textContent = S.mode === "sip" ? "Monthly SIP needed" : "Lumpsum needed";
+    $("need").textContent = rupee(r.P);
+    var share = r.total > 0 ? Math.max(0, r.returns) / r.total : 0;
+    $("retShare").textContent = (share * 100).toFixed(0) + "%";
+    var invLen = (1 - share) * CIRC;
+    $("arcInv").setAttribute("stroke-dasharray", invLen.toFixed(2) + " " + (CIRC - invLen + 4).toFixed(2));
+    renderChart(r);
+    renderRows();
+    $("readout").textContent = "Hover or tap a bar to see that year.";
+  }
+
+  // ---- events ----
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.addEventListener("click", function () {
+      S.mode = b.getAttribute("data-mode");
+      document.querySelectorAll(".tab").forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+      configureAmount(); render();
+    });
+  });
+  document.querySelectorAll('input[name="calc"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      S.calc = r.value; configureAmount(); render();
+    });
+  });
+
+  $("amtRng").addEventListener("input", function () {
+    S.vals[key()] = +this.value; $("amtNum").value = this.value; setFill(this); render();
+  });
+  $("amtNum").addEventListener("input", function () {
+    var v = parseFloat(this.value); if (!isFinite(v) || v < 0) v = 0;
+    S.vals[key()] = v;
+    var r = $("amtRng"); r.value = Math.min(Math.max(v, +r.min), +r.max); setFill(r); render();
+  });
+  $("rateRng").addEventListener("input", function () {
+    S.rate = +this.value; $("rateNum").value = this.value; setFill(this); render();
+  });
+  $("rateNum").addEventListener("input", function () {
+    var v = parseFloat(this.value); if (!isFinite(v) || v < 0) v = 0; if (v > 50) v = 50;
+    S.rate = v; var r = $("rateRng"); r.value = Math.min(Math.max(v, +r.min), +r.max); setFill(r); render();
+  });
+  $("tenRng").addEventListener("input", function () {
+    S.years = +this.value; $("tenNum").value = this.value; setFill(this); render();
+  });
+  $("tenNum").addEventListener("input", function () {
+    var v = parseFloat(this.value); if (!isFinite(v) || v < 1) v = 1;
+    var max = S.unit === "Y" ? 40 : 480; if (v > max) v = max;
+    S.years = v; var r = $("tenRng"); r.value = v; setFill(r); render();
+  });
+  $("unit").addEventListener("change", function () {
+    var toMonths = this.value === "M";
+    if (toMonths && S.unit === "Y") S.years = Math.min(480, Math.round(S.years * 12));
+    if (!toMonths && S.unit === "M") S.years = Math.min(40, Math.max(1, Math.round(S.years / 12)));
+    S.unit = this.value; configureTenure(); render();
+  });
+
+  $("rateNum").value = S.rate; $("rateRng").value = S.rate; setFill($("rateRng"));
+  configureAmount(); configureTenure(); render();
+})();
+</script>
+
+</body></html>
